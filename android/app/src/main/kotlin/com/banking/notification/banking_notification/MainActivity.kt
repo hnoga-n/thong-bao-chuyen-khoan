@@ -1,7 +1,10 @@
 package com.banking.notification.banking_notification
 
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
+import android.service.notification.NotificationListenerService
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -46,6 +49,21 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("SETTINGS_ERROR", "Failed to open settings: ${e.message}", null)
+                    }
+                }
+                "rebindNotificationService" -> {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            NotificationListenerService.requestRebind(
+                                ComponentName(this, BankNotificationService::class.java)
+                            )
+                            result.success(true)
+                        } else {
+                            // For older Android versions, toggle the service
+                            result.success(false)
+                        }
+                    } catch (e: Exception) {
+                        result.error("REBIND_ERROR", "Failed to rebind service: ${e.message}", null)
                     }
                 }
                 else -> {

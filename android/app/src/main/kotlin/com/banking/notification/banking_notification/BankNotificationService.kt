@@ -31,6 +31,12 @@ class BankNotificationService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         Log.e(TAG, "NotificationListenerService DISCONNECTED - Will not receive notifications")
+        
+        // Request rebind to reconnect the service automatically
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            requestRebind(android.content.ComponentName(this, BankNotificationService::class.java))
+            Log.d(TAG, "Requested rebind for NotificationListenerService")
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {

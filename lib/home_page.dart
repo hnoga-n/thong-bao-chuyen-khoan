@@ -40,6 +40,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'isNotificationAccessGranted',
       );
       granted = result;
+
+      // If permission is granted, request rebind to ensure service is running
+      if (granted) {
+        await _rebindNotificationService();
+      }
     } on PlatformException catch (e) {
       debugPrint("Failed to get permission status: '${e.message}'.");
     }
@@ -48,6 +53,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       setState(() {
         _isPermissionGranted = granted;
       });
+    }
+  }
+
+  Future<void> _rebindNotificationService() async {
+    try {
+      await platform.invokeMethod('rebindNotificationService');
+      debugPrint("Notification service rebind requested");
+    } on PlatformException catch (e) {
+      debugPrint("Failed to rebind notification service: '${e.message}'.");
     }
   }
 

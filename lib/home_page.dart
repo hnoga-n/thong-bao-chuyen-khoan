@@ -12,12 +12,14 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const platform = MethodChannel('transaction_voice');
   bool _isPermissionGranted = false;
+  bool _isServiceConnected = false;
+  bool _isReconnecting = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkPermission();
+    _checkStatus();
   }
 
   @override
@@ -29,39 +31,73 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkPermission();
+      _checkStatus();
     }
   }
 
-  Future<void> _checkPermission() async {
+  Future<void> _checkStatus() async {
     bool granted = false;
-    try {
-      final bool result = await platform.invokeMethod(
-        'isNotificationAccessGranted',
-      );
-      granted = result;
+    bool connected = false;
 
-      // If permission is granted, request rebind to ensure service is running
+    try {
+      // Check if permission is granted
+      granted = await platform.invokeMethod('isNotificationAccessGranted');
+
       if (granted) {
-        await _rebindNotificationService();
+        // Check if service is currently connected
+        connected = await platform.invokeMethod('isServiceConnected');
+        debugPrint("Permission: $granted, Service connected: $connected");
+
+        // If not connected, try to reconnect automatically
+        if (!connected && !_isReconnecting) {
+          await _autoReconnect();
+          // Check again after reconnect attempt
+          await Future.delayed(const Duration(milliseconds: 1500));
+          connected = await platform.invokeMethod('isServiceConnected');
+          debugPrint("After reconnect attempt, connected: $connected");
+        }
       }
     } on PlatformException catch (e) {
-      debugPrint("Failed to get permission status: '${e.message}'.");
+      debugPrint("Failed to get status: '${e.message}'.");
     }
 
     if (mounted) {
       setState(() {
         _isPermissionGranted = granted;
+        _isServiceConnected = connected;
       });
     }
   }
 
-  Future<void> _rebindNotificationService() async {
+  Future<void> _autoReconnect() async {
+    if (_isReconnecting) return;
+
+    setState(() {
+      _isReconnecting = true;
+    });
+
     try {
+      debugPrint("Attempting automatic reconnection...");
+
+      // First try simple rebind
       await platform.invokeMethod('rebindNotificationService');
-      debugPrint("Notification service rebind requested");
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      bool connected = await platform.invokeMethod('isServiceConnected');
+
+      // If still not connected, try force reconnect (toggle component)
+      if (!connected) {
+        debugPrint("Simple rebind failed, trying force reconnect...");
+        await platform.invokeMethod('forceReconnectService');
+      }
     } on PlatformException catch (e) {
-      debugPrint("Failed to rebind notification service: '${e.message}'.");
+      debugPrint("Auto reconnect failed: '${e.message}'.");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isReconnecting = false;
+        });
+      }
     }
   }
 
@@ -81,7 +117,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("TTS request sent. Check volume.")),
+          const SnackBar(
+            content: Text("Đã gửi yêu cầu TTS. Kiểm tra âm lượng."),
+          ),
         );
       }
     } on PlatformException catch (e) {
@@ -89,7 +127,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("TTS Error: ${e.message}"),
+            content: Text("Lỗi TTS: ${e.message}"),
             backgroundColor: Colors.red,
           ),
         );
@@ -99,9 +137,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Determine status
+    final bool isFullyActive = _isPermissionGranted && _isServiceConnected;
+    final bool needsReconnect =
+        _isPermissionGranted && !_isServiceConnected && !_isReconnecting;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Banking Notification"),
+        title: const Text("Thông Báo Giao Dịch"),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -120,28 +163,59 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                _isPermissionGranted ? Icons.check_circle : Icons.error,
-                color: _isPermissionGranted ? Colors.green : Colors.red,
-                size: 80,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _isPermissionGranted ? "Service Active" : "Permission Required",
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
+              if (_isReconnecting) ...[
+                const SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: CircularProgressIndicator(strokeWidth: 6),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "Đang kết nối lại...",
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ] else ...[
+                Icon(
+                  isFullyActive
+                      ? Icons.check_circle
+                      : needsReconnect
+                      ? Icons.warning_amber_rounded
+                      : Icons.error,
+                  color: isFullyActive
+                      ? Colors.green
+                      : needsReconnect
+                      ? Colors.orange
+                      : Colors.red,
+                  size: 80,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isFullyActive
+                      ? "Đang hoạt động"
+                      : needsReconnect
+                      ? "Mất kết nối"
+                      : "Cần cấp quyền",
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ],
               const SizedBox(height: 8),
-              if (!_isPermissionGranted)
+              if (!_isPermissionGranted && !_isReconnecting)
                 const Text(
-                  "To listen to banking notifications, please grant Notification Access.",
+                  "Để lắng nghe thông báo ngân hàng, vui lòng cấp quyền truy cập thông báo.",
                   textAlign: TextAlign.center,
                 ),
+              if (needsReconnect)
+                const Text(
+                  "Không thể tự động kết nối lại. Vui lòng thử lại hoặc bật/tắt quyền thủ công.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.orange),
+                ),
               const SizedBox(height: 24),
-              if (!_isPermissionGranted)
+              if (!_isPermissionGranted && !_isReconnecting)
                 ElevatedButton.icon(
                   onPressed: _openNotificationSettings,
                   icon: const Icon(Icons.settings),
-                  label: const Text("Open Notification Settings"),
+                  label: const Text("Mở cài đặt quyền thông báo"),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
@@ -149,13 +223,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
+              if (needsReconnect) ...[
+                ElevatedButton.icon(
+                  onPressed: _autoReconnect,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Thử kết nối lại"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _openNotificationSettings,
+                  child: const Text("Thủ công: Bật/tắt quyền"),
+                ),
+              ],
               const SizedBox(height: 48),
               OutlinedButton.icon(
-                onPressed: () {
-                  _testVoiceTTS();
-                },
+                onPressed: _isReconnecting ? null : _testVoiceTTS,
                 icon: const Icon(Icons.volume_up),
-                label: const Text("Test Voice TTS"),
+                label: const Text("Thử giọng nói"),
               ),
             ],
           ),

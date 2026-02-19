@@ -53,24 +53,24 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Settings")),
+      appBar: AppBar(title: const Text("Cài đặt")),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           SwitchListTile(
-            title: const Text("Enable Voice Notification"),
+            title: const Text("Bật thông báo giọng nói"),
             value: _voiceEnabled,
             onChanged: _saveVoiceEnabled,
           ),
           const Divider(),
-          const Text("Minimum Amount to Speak (VND)"),
+          const Text("Số tiền tối thiểu để đọc (VND)"),
           const SizedBox(height: 8),
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
-              hintText: "Enter amount (e.g. 50000)",
+              hintText: "Nhập số tiền (ví dụ: 50000)",
               suffixText: "VND",
             ),
             onChanged: _saveMinAmount,
@@ -84,13 +84,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
                   Text(
-                    "Privacy Explanation",
+                    "Giải thích về quyền riêng tư",
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    "This app listens to notifications from banking apps solely to read out the transaction details using Text-to-Speech. "
-                    "No data is collected, stored remotely, or shared. All processing happens locally on your device.",
+                    "Ứng dụng này lắng nghe thông báo từ các ứng dụng ngân hàng chỉ để đọc chi tiết giao dịch bằng giọng nói. "
+                    "Không có dữ liệu nào được thu thập, lưu trữ từ xa hoặc chia sẻ. Tất cả xử lý đều diễn ra cục bộ trên thiết bị của bạn.",
                   ),
                 ],
               ),
@@ -99,7 +99,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 16),
           const Center(
             child: Text(
-              "This app is NOT affiliated with any bank.",
+              "Ứng dụng này KHÔNG liên kết với bất kỳ ngân hàng nào.",
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),

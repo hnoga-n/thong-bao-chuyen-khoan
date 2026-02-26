@@ -72,7 +72,7 @@ class BankNotificationService : NotificationListenerService() {
         val packageName = sbn.packageName
         Log.d(TAG, "Notification from package: $packageName")
         // Target packages
-        if (packageName !in listOf("com.acb.acbapp", "com.vietcombank.vcb", "com.mservice.momotransfer")) {
+        if (packageName !in listOf("mobile.acb.com.vn", "com.VCB", "com.mservice.momotransfer","com.mbmobile","com.vnpay.Agribank3g")) {
             return
         }
 
